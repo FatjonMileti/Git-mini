@@ -31,6 +31,12 @@ function verifyPassword(password, stored) {
   return crypto.timingSafeEqual(candidate, expected);
 }
 
+function ensureColumn(database, table, column, definition) {
+  const columns = database.prepare(`PRAGMA table_info(${table})`).all();
+  if (columns.some((entry) => entry.name === column)) return;
+  database.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
+}
+
 function initSchema(database) {
   database.exec(`
     PRAGMA journal_mode = WAL;
@@ -39,7 +45,12 @@ function initSchema(database) {
     CREATE TABLE IF NOT EXISTS users (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       username TEXT NOT NULL UNIQUE COLLATE NOCASE,
-      password_hash TEXT NOT NULL
+      password_hash TEXT NOT NULL,
+      display_name TEXT NOT NULL DEFAULT '',
+      email TEXT NOT NULL DEFAULT '',
+      bio TEXT NOT NULL DEFAULT '',
+      default_private INTEGER NOT NULL DEFAULT 0,
+      token_version INTEGER NOT NULL DEFAULT 0
     );
 
     CREATE TABLE IF NOT EXISTS repositories (
@@ -65,6 +76,19 @@ function initSchema(database) {
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
     );
+  `);
+
+  // Migrate databases created before account settings existed.
+  ensureColumn(database, 'users', 'display_name', "TEXT NOT NULL DEFAULT ''");
+  ensureColumn(database, 'users', 'email', "TEXT NOT NULL DEFAULT ''");
+  ensureColumn(database, 'users', 'bio', "TEXT NOT NULL DEFAULT ''");
+  ensureColumn(database, 'users', 'default_private', 'INTEGER NOT NULL DEFAULT 0');
+  ensureColumn(database, 'users', 'token_version', 'INTEGER NOT NULL DEFAULT 0');
+
+  database.exec(`
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email
+    ON users (email COLLATE NOCASE)
+    WHERE email <> '';
   `);
 }
 
@@ -99,22 +123,66 @@ function createUser(username, password) {
   return findUserById(info.lastInsertRowid);
 }
 
+const USER_COLUMNS = `
+  id, username, display_name, email, bio, default_private, token_version
+`;
+
 function findUserById(id) {
-  return getDb().prepare('SELECT id, username FROM users WHERE id = ?').get(id) || null;
+  return getDb().prepare(`SELECT ${USER_COLUMNS} FROM users WHERE id = ?`).get(id) || null;
 }
 
 function findUserByUsername(username) {
   return (
     getDb()
-      .prepare('SELECT id, username, password_hash FROM users WHERE username = ?')
+      .prepare(`SELECT ${USER_COLUMNS}, password_hash FROM users WHERE username = ?`)
       .get(username) || null
+  );
+}
+
+function findUserByEmail(email) {
+  if (!email) return null;
+  return (
+    getDb()
+      .prepare('SELECT id, username FROM users WHERE email = ? COLLATE NOCASE AND email <> \'\'')
+      .get(email) || null
   );
 }
 
 function authenticate(username, password) {
   const user = findUserByUsername(username);
   if (!user || !verifyPassword(password, user.password_hash)) return null;
-  return { id: user.id, username: user.username };
+  return findUserById(user.id);
+}
+
+function verifyUserPassword(userId, password) {
+  const row = getDb().prepare('SELECT password_hash FROM users WHERE id = ?').get(userId);
+  return Boolean(row && verifyPassword(password, row.password_hash));
+}
+
+function updateUserProfile(userId, { displayName, email, bio, defaultPrivate }) {
+  const info = getDb()
+    .prepare(
+      `
+      UPDATE users
+      SET display_name = ?, email = ?, bio = ?, default_private = ?
+      WHERE id = ?
+    `
+    )
+    .run(displayName, email, bio, defaultPrivate ? 1 : 0, userId);
+  return info.changes > 0 ? findUserById(userId) : null;
+}
+
+function updateUserPassword(userId, newPassword) {
+  const info = getDb()
+    .prepare(
+      `
+      UPDATE users
+      SET password_hash = ?, token_version = token_version + 1
+      WHERE id = ?
+    `
+    )
+    .run(hashPassword(newPassword), userId);
+  return info.changes > 0 ? findUserById(userId) : null;
 }
 
 function createRepository({ name, ownerId, isPrivate, description }) {
@@ -249,7 +317,11 @@ module.exports = {
   createUser,
   findUserById,
   findUserByUsername,
+  findUserByEmail,
   authenticate,
+  verifyUserPassword,
+  updateUserProfile,
+  updateUserPassword,
   createRepository,
   getRepositoryById,
   getRepository,

@@ -22,7 +22,7 @@ Open [http://localhost:3000](http://localhost:3000). The first-run account is:
 |----------|----------|
 | `admin`  | `admin`  |
 
-Change that password in production, or register a new user at `/register`.
+Change that password in **Settings** after signing in, or register a new user at `/register`.
 
 Environment:
 
@@ -82,6 +82,7 @@ interactive shell).
 | `/<owner>/<repo>` | Repo landing page (name, clone URL, files) |
 | `/<owner>/<repo>/commits` | Commit history |
 | `/<owner>/<repo>/branches` | Branch list |
+| `/settings` | Profile, repository defaults, and password change |
 | `/settings/ssh` | Manage SSH public keys |
 | `/login`, `/register`, `/logout` | JWT cookie auth |
 
@@ -118,4 +119,5 @@ Git interaction is always `child_process` + the system `git` binary (`init --bar
 - Owner and repo names are limited to `A-Z a-z 0-9 . _ -` to avoid path traversal.
 - SSH keys are stored in SQLite and the host key is generated on first start under `storage/`.
 - Web auth is a stateless JWT in an HTTP-only cookie; logout clears the cookie, but issued tokens stay valid until `JWT_EXPIRES_IN`.
+- Password changes increment the user's token version, invalidating other browsers; account settings also store display name, email, bio, and the default repository visibility.
 - This is a teaching/local host, not a full Gitea replacement (no issues or pull requests).

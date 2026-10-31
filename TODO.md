@@ -17,6 +17,8 @@ Track implementation of the Node.js Git host (Express + SQLite + system `git`).
 - [x] Open/create DB at a known path; create `storage/` if missing
 - [x] CRUD: create/find user, create/list/get repository
 - [x] Seed a default local user for first-run dashboard use
+- [x] User profile columns (`display_name`, `email`, `bio`, `default_private`) with in-place migration
+- [x] `token_version` for revoking JWTs after a password change; unique non-empty email index
 
 ## Git core (`gitCore.js`)
 
@@ -49,6 +51,10 @@ Track implementation of the Node.js Git host (Express + SQLite + system `git`).
 - [x] Replace `express-session` with a stateless JWT auth cookie (`jsonwebtoken`)
 - [x] Short-lived signed JWT flash messages; logout clears the auth cookie
 - [x] Private repos hidden from anonymous dashboard; owner can still open them
+- [x] `GET /settings` account page with display name, email, bio, and default repo visibility
+- [x] `POST /settings/profile` with validation and unique email enforcement
+- [x] `POST /settings/password` verifies the current password and rotates the JWT token version
+- [x] Header shows display name and links to account settings
 
 ## Repository management
 

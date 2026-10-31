@@ -1,0 +1,144 @@
+<%- include('partials/header') %>
+<div class="mb-2">
+  <a class="text-sm text-slate-500 hover:text-moss" href="/dashboard">&larr; Dashboard</a>
+  <h1 class="mt-2 text-2xl font-semibold">Account settings</h1>
+  <p class="mt-1 text-sm text-slate-500">
+    Manage your profile, repository defaults, and password.
+  </p>
+</div>
+
+<%- include('partials/settings-tabs', { section: section }) %>
+
+<div class="grid gap-6 lg:grid-cols-3">
+  <section class="rounded-lg border border-slate-200 bg-white lg:col-span-2">
+    <div class="border-b border-slate-200 px-4 py-3">
+      <h2 class="font-semibold">Profile</h2>
+    </div>
+
+    <form class="space-y-4 p-5" action="/settings/profile" method="post">
+      <div class="grid gap-4 sm:grid-cols-2">
+        <label class="block text-sm font-medium">
+          Username
+          <input
+            class="mt-1 w-full rounded border border-slate-200 bg-slate-100 px-3 py-2 text-sm text-slate-500"
+            value="<%= currentUser.username %>"
+            disabled
+          />
+        </label>
+        <label class="block text-sm font-medium">
+          Display name
+          <input
+            class="mt-1 w-full rounded border border-slate-300 px-3 py-2 text-sm"
+            name="display_name"
+            maxlength="80"
+            value="<%= currentUser.display_name || '' %>"
+            placeholder="Shown in the site header"
+          />
+        </label>
+      </div>
+
+      <label class="block text-sm font-medium">
+        Email
+        <input
+          class="mt-1 w-full rounded border border-slate-300 px-3 py-2 text-sm"
+          type="email"
+          name="email"
+          maxlength="254"
+          value="<%= currentUser.email || '' %>"
+          placeholder="you@example.com"
+        />
+        <span class="mt-1 block text-xs font-normal text-slate-500">
+          Optional. Used for account contact and never shown publicly.
+        </span>
+      </label>
+
+      <label class="block text-sm font-medium">
+        Bio
+        <textarea
+          class="mt-1 h-28 w-full rounded border border-slate-300 px-3 py-2 text-sm"
+          name="bio"
+          maxlength="500"
+          placeholder="A short description of yourself"
+        ><%= currentUser.bio || '' %></textarea>
+        <span class="mt-1 block text-xs font-normal text-slate-500">Up to 500 characters.</span>
+      </label>
+
+      <label class="flex items-start gap-2 rounded border border-slate-200 bg-slate-50 p-3 text-sm">
+        <input
+          class="mt-0.5"
+          type="checkbox"
+          name="default_private"
+          value="1"
+          <%= currentUser.default_private ? 'checked' : '' %>
+        />
+        <span>
+          <span class="font-medium">Private by default</span>
+          <span class="block text-xs text-slate-500">
+            Pre-select the private option when creating new repositories.
+          </span>
+        </span>
+      </label>
+
+      <button
+        class="rounded bg-moss px-4 py-2 text-sm font-semibold text-white hover:bg-green-600"
+        type="submit"
+      >
+        Save profile
+      </button>
+    </form>
+  </section>
+
+  <section class="rounded-lg border border-slate-200 bg-white">
+    <div class="border-b border-slate-200 px-4 py-3">
+      <h2 class="font-semibold">Password</h2>
+    </div>
+
+    <form class="space-y-4 p-5" action="/settings/password" method="post">
+      <label class="block text-sm font-medium">
+        Current password
+        <input
+          class="mt-1 w-full rounded border border-slate-300 px-3 py-2 text-sm"
+          type="password"
+          name="current_password"
+          autocomplete="current-password"
+          required
+        />
+      </label>
+      <label class="block text-sm font-medium">
+        New password
+        <input
+          class="mt-1 w-full rounded border border-slate-300 px-3 py-2 text-sm"
+          type="password"
+          name="new_password"
+          autocomplete="new-password"
+          minlength="4"
+          required
+        />
+      </label>
+      <label class="block text-sm font-medium">
+        Confirm new password
+        <input
+          class="mt-1 w-full rounded border border-slate-300 px-3 py-2 text-sm"
+          type="password"
+          name="confirm_password"
+          autocomplete="new-password"
+          minlength="4"
+          required
+        />
+      </label>
+
+      <button
+        class="w-full rounded bg-slate-800 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-700"
+        type="submit"
+      >
+        Update password
+      </button>
+
+      <p class="text-xs text-slate-500">
+        Changing your password signs out other browsers. SSH keys are not affected.
+      </p>
+    </form>
+  </section>
+</div>
+
+<%- include('partials/footer') %>

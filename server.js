@@ -76,10 +76,14 @@ function parseCookies(header) {
 }
 
 function issueAuthToken(user) {
-  return jwt.sign({ username: user.username }, JWT_SECRET, {
-    subject: String(user.id),
-    expiresIn: JWT_EXPIRES_IN,
-  });
+  return jwt.sign(
+    { username: user.username, ver: Number(user.token_version) || 0 },
+    JWT_SECRET,
+    {
+      subject: String(user.id),
+      expiresIn: JWT_EXPIRES_IN,
+    }
+  );
 }
 
 function setAuthCookie(res, user) {
@@ -108,7 +112,8 @@ function authenticateJwt(req, res, next) {
     try {
       const payload = jwt.verify(authToken, JWT_SECRET);
       const user = models.findUserById(Number(payload.sub));
-      if (user) req.user = user;
+      const tokenVersion = payload.ver === undefined ? 0 : Number(payload.ver);
+      if (user && tokenVersion === Number(user.token_version || 0)) req.user = user;
       else clearAuthCookie(res);
     } catch {
       clearAuthCookie(res);
@@ -301,12 +306,89 @@ app.post('/create', requireLogin, async (req, res) => {
   }
 });
 
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+/**
+ * GET /settings — account profile, repository defaults, and password
+ */
+app.get('/settings', requireLogin, (req, res) => {
+  res.render('settings-account', {
+    title: 'Account settings',
+    section: 'account',
+  });
+});
+
+app.post('/settings/profile', requireLogin, (req, res) => {
+  const displayName = String(req.body.display_name || '').trim();
+  const email = String(req.body.email || '').trim().toLowerCase();
+  const bio = String(req.body.bio || '').trim();
+  const defaultPrivate = Boolean(req.body.default_private);
+
+  if (displayName.length > 80) {
+    setFlash(req, 'error', 'Display name must be 80 characters or fewer.');
+    return res.redirect('/settings');
+  }
+  if (email && (email.length > 254 || !EMAIL_PATTERN.test(email))) {
+    setFlash(req, 'error', 'Enter a valid email address.');
+    return res.redirect('/settings');
+  }
+  if (bio.length > 500) {
+    setFlash(req, 'error', 'Bio must be 500 characters or fewer.');
+    return res.redirect('/settings');
+  }
+
+  const emailOwner = models.findUserByEmail(email);
+  if (emailOwner && Number(emailOwner.id) !== Number(req.user.id)) {
+    setFlash(req, 'error', 'That email address is already in use.');
+    return res.redirect('/settings');
+  }
+
+  try {
+    models.updateUserProfile(req.user.id, { displayName, email, bio, defaultPrivate });
+    setFlash(req, 'success', 'Account settings updated.');
+  } catch (err) {
+    setFlash(req, 'error', err.message || 'Could not update account settings.');
+  }
+  res.redirect('/settings');
+});
+
+app.post('/settings/password', requireLogin, (req, res) => {
+  const currentPassword = String(req.body.current_password || '');
+  const newPassword = String(req.body.new_password || '');
+  const confirmPassword = String(req.body.confirm_password || '');
+
+  if (!models.verifyUserPassword(req.user.id, currentPassword)) {
+    setFlash(req, 'error', 'Current password is incorrect.');
+    return res.redirect('/settings');
+  }
+  if (newPassword.length < 4) {
+    setFlash(req, 'error', 'New password must be at least 4 characters.');
+    return res.redirect('/settings');
+  }
+  if (newPassword !== confirmPassword) {
+    setFlash(req, 'error', 'New passwords do not match.');
+    return res.redirect('/settings');
+  }
+
+  const updated = models.updateUserPassword(req.user.id, newPassword);
+  if (!updated) {
+    setFlash(req, 'error', 'Could not update password.');
+    return res.redirect('/settings');
+  }
+
+  // Rotate the token version and refresh this browser's cookie.
+  setAuthCookie(res, updated);
+  setFlash(req, 'success', 'Password updated. Other signed-in devices were signed out.');
+  res.redirect('/settings');
+});
+
 /**
  * GET /settings/ssh — manage the current user's SSH public keys
  */
 app.get('/settings/ssh', requireLogin, (req, res) => {
   res.render('settings-ssh', {
     title: 'SSH keys',
+    section: 'ssh',
     keys: models.listSshKeys(req.user.id),
     sshPort: SSH_PORT,
     sshEnabled: SSH_ENABLED,

@@ -105,7 +105,12 @@
             />
           </label>
           <label class="flex items-center gap-2 text-sm">
-            <input type="checkbox" name="is_private" value="1" />
+            <input
+              type="checkbox"
+              name="is_private"
+              value="1"
+              <%= currentUser.default_private ? 'checked' : '' %>
+            />
             Private (hidden from other users on the dashboard)
           </label>
           <button

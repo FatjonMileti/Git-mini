@@ -1,11 +1,13 @@
 <%- include('partials/header') %>
-<div class="mb-6">
-  <a class="text-sm text-slate-500 hover:text-moss" href="/dashboard">← Dashboard</a>
+<div class="mb-2">
+  <a class="text-sm text-slate-500 hover:text-moss" href="/dashboard">&larr; Dashboard</a>
   <h1 class="mt-2 text-2xl font-semibold">SSH keys</h1>
   <p class="mt-1 text-sm text-slate-500">
     Add the public keys that may clone and push over SSH.
   </p>
 </div>
+
+<%- include('partials/settings-tabs', { section: section }) %>
 
 <div class="grid gap-6 lg:grid-cols-2">
   <section class="rounded-lg border border-slate-200 bg-white">
