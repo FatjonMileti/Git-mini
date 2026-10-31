@@ -9,11 +9,12 @@
 
 const path = require('path');
 const express = require('express');
-const session = require('express-session');
+const jwt = require('jsonwebtoken');
 
 const {
   PORT,
-  SESSION_SECRET,
+  JWT_SECRET,
+  JWT_EXPIRES_IN,
   SSH_ENABLED,
   SSH_PORT,
   SSH_PUBLIC_HOST,
@@ -50,29 +51,89 @@ function sshCloneUrl(req, owner, repoName) {
   return `ssh://git@${host}${portPart}/${encodeURIComponent(owner)}/${encodeURIComponent(repoName)}.git`;
 }
 
-app.use(
-  session({
-    name: 'gitmini.sid',
-    secret: SESSION_SECRET,
-    resave: false,
-    saveUninitialized: false,
-    cookie: { httpOnly: true, sameSite: 'lax', maxAge: 7 * 24 * 60 * 60 * 1000 },
-  })
-);
+const AUTH_COOKIE = 'gitmini.token';
+const FLASH_COOKIE = 'gitmini.flash';
+const COOKIE_OPTIONS = { httpOnly: true, sameSite: 'lax', path: '/' };
+const DEFAULT_AUTH_MAX_AGE = 7 * 24 * 60 * 60 * 1000;
 
-app.use((req, res, next) => {
-  res.locals.currentUser = req.session.user || null;
-  res.locals.flash = req.session.flash || null;
-  delete req.session.flash;
-  next();
-});
+function parseCookies(header) {
+  const cookies = {};
+  String(header || '')
+    .split(';')
+    .forEach((part) => {
+      const index = part.indexOf('=');
+      if (index === -1) return;
+      const key = part.slice(0, index).trim();
+      if (!key) return;
+      const value = part.slice(index + 1).trim();
+      try {
+        cookies[key] = decodeURIComponent(value);
+      } catch {
+        cookies[key] = value;
+      }
+    });
+  return cookies;
+}
+
+function issueAuthToken(user) {
+  return jwt.sign({ username: user.username }, JWT_SECRET, {
+    subject: String(user.id),
+    expiresIn: JWT_EXPIRES_IN,
+  });
+}
+
+function setAuthCookie(res, user) {
+  const token = issueAuthToken(user);
+  const decoded = jwt.decode(token);
+  const maxAge =
+    decoded && decoded.exp ? Math.max(0, decoded.exp * 1000 - Date.now()) : DEFAULT_AUTH_MAX_AGE;
+  res.cookie(AUTH_COOKIE, token, { ...COOKIE_OPTIONS, maxAge });
+}
+
+function clearAuthCookie(res) {
+  res.clearCookie(AUTH_COOKIE, COOKIE_OPTIONS);
+}
 
 function setFlash(req, type, message) {
-  req.session.flash = { type, message };
+  const token = jwt.sign({ type, message }, JWT_SECRET, { expiresIn: '5m' });
+  req.res.cookie(FLASH_COOKIE, token, { ...COOKIE_OPTIONS, maxAge: 5 * 60 * 1000 });
+}
+
+function authenticateJwt(req, res, next) {
+  req.cookies = parseCookies(req.headers.cookie);
+  req.user = null;
+
+  const authToken = req.cookies[AUTH_COOKIE];
+  if (authToken) {
+    try {
+      const payload = jwt.verify(authToken, JWT_SECRET);
+      const user = models.findUserById(Number(payload.sub));
+      if (user) req.user = user;
+      else clearAuthCookie(res);
+    } catch {
+      clearAuthCookie(res);
+    }
+  }
+
+  let flash = null;
+  const flashToken = req.cookies[FLASH_COOKIE];
+  if (flashToken) {
+    try {
+      const payload = jwt.verify(flashToken, JWT_SECRET);
+      flash = { type: payload.type, message: payload.message };
+    } catch {
+      flash = null;
+    }
+    res.clearCookie(FLASH_COOKIE, COOKIE_OPTIONS);
+  }
+
+  res.locals.currentUser = req.user;
+  res.locals.flash = flash;
+  next();
 }
 
 function requireLogin(req, res, next) {
-  if (!req.session.user) {
+  if (!req.user) {
     setFlash(req, 'error', 'Sign in to continue.');
     return res.redirect('/login');
   }
@@ -93,7 +154,7 @@ function loadAccessibleRepo(req, res) {
   if (RESERVED_OWNERS.has(owner)) return { skip: true };
 
   const repo = models.getRepository(owner, repoName);
-  const viewerId = req.session.user ? req.session.user.id : null;
+  const viewerId = req.user ? req.user.id : null;
   if (!repo || !models.canViewRepository(repo, viewerId)) {
     res.status(404).render('not-found', {
       title: 'Not found',
@@ -127,13 +188,16 @@ function breadcrumbs(dirPath) {
 // --- Git Smart HTTP (raw body streams; no JSON parser) ---
 app.use('/repos', createGitHttpRouter());
 
+// JWT auth/flash only for web routes, after the raw Git stream router.
+app.use(authenticateJwt);
+
 app.use(express.urlencoded({ extended: false }));
 app.use(express.json());
 
 app.get('/', (_req, res) => res.redirect('/dashboard'));
 
 app.get('/login', (req, res) => {
-  if (req.session.user) return res.redirect('/dashboard');
+  if (req.user) return res.redirect('/dashboard');
   res.render('login', { title: 'Sign in' });
 });
 
@@ -145,12 +209,12 @@ app.post('/login', (req, res) => {
     setFlash(req, 'error', 'Invalid username or password.');
     return res.redirect('/login');
   }
-  req.session.user = user;
+  setAuthCookie(res, user);
   res.redirect('/dashboard');
 });
 
 app.get('/register', (req, res) => {
-  if (req.session.user) return res.redirect('/dashboard');
+  if (req.user) return res.redirect('/dashboard');
   res.render('register', { title: 'Create account' });
 });
 
@@ -171,7 +235,7 @@ app.post('/register', (req, res) => {
   }
   try {
     const user = models.createUser(username, password);
-    req.session.user = { id: user.id, username: user.username };
+    setAuthCookie(res, user);
     res.redirect('/dashboard');
   } catch (err) {
     setFlash(req, 'error', err.message || 'Could not create account.');
@@ -180,14 +244,15 @@ app.post('/register', (req, res) => {
 });
 
 app.post('/logout', (req, res) => {
-  req.session.destroy(() => res.redirect('/dashboard'));
+  clearAuthCookie(res);
+  res.redirect('/dashboard');
 });
 
 /**
  * GET /dashboard — public (and own private) repositories + create form
  */
 app.get('/dashboard', async (req, res) => {
-  const viewerId = req.session.user ? req.session.user.id : null;
+  const viewerId = req.user ? req.user.id : null;
   const repositories = await Promise.all(
     models.listRepositoriesForViewer(viewerId).map(async (repo) => {
       try {
@@ -208,7 +273,7 @@ app.post('/create', requireLogin, async (req, res) => {
   const name = String(req.body.name || '').trim();
   const description = String(req.body.description || '').trim();
   const isPrivate = Boolean(req.body.is_private);
-  const owner = req.session.user.username;
+  const owner = req.user.username;
 
   if (!/^[A-Za-z0-9._-]{1,80}$/.test(name) || name === '.' || name === '..') {
     setFlash(req, 'error', 'Repository name must use letters, digits, . _ - only.');
@@ -224,7 +289,7 @@ app.post('/create', requireLogin, async (req, res) => {
     await gitCore.createBareRepo(owner, name);
     models.createRepository({
       name,
-      ownerId: req.session.user.id,
+      ownerId: req.user.id,
       isPrivate,
       description,
     });
@@ -242,7 +307,7 @@ app.post('/create', requireLogin, async (req, res) => {
 app.get('/settings/ssh', requireLogin, (req, res) => {
   res.render('settings-ssh', {
     title: 'SSH keys',
-    keys: models.listSshKeys(req.session.user.id),
+    keys: models.listSshKeys(req.user.id),
     sshPort: SSH_PORT,
     sshEnabled: SSH_ENABLED,
   });
@@ -267,7 +332,7 @@ app.post('/settings/ssh', requireLogin, (req, res) => {
 
   try {
     models.createSshKey({
-      userId: req.session.user.id,
+      userId: req.user.id,
       title,
       publicKey: parsed.publicKey,
       keyType: parsed.type,
@@ -288,7 +353,7 @@ app.post('/settings/ssh/:id/delete', requireLogin, (req, res) => {
     setFlash(req, 'error', 'Invalid SSH key.');
     return res.redirect('/settings/ssh');
   }
-  const removed = models.deleteSshKey(id, req.session.user.id);
+  const removed = models.deleteSshKey(id, req.user.id);
   setFlash(
     req,
     removed ? 'success' : 'error',

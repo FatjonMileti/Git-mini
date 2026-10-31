@@ -6,7 +6,7 @@ Track implementation of the Node.js Git host (Express + SQLite + system `git`).
 
 - [x] `AGENTS.md` — project conventions for agents and contributors
 - [x] `TODO.md` — this checklist
-- [x] `package.json` — Express, SQLite driver, EJS, session; `start` script
+- [x] `package.json` — Express, SQLite driver, EJS, JWT; `start` script
 - [x] `.gitignore` — `node_modules/`, `storage/`, `*.db`, env files
 
 ## Database & models (`models.js`)
@@ -40,12 +40,14 @@ Track implementation of the Node.js Git host (Express + SQLite + system `git`).
 
 ## Web dashboard (`server.js` & views)
 
-- [x] Express app: static/views, sessions, JSON/urlencoded **after** Git routes
+- [x] Express app: static/views, JWT auth, JSON/urlencoded **after** Git routes
 - [x] `GET /dashboard` — public repos + create-repository form
 - [x] `POST /create` — persist metadata + `createBareRepo`
 - [x] `GET /:owner/:repo` — name, clone URL, root tree listing
 - [x] Minimal HTML + Tailwind CDN
 - [x] Auth pages (register/login/logout) so `password_hash` is used
+- [x] Replace `express-session` with a stateless JWT auth cookie (`jsonwebtoken`)
+- [x] Short-lived signed JWT flash messages; logout clears the auth cookie
 - [x] Private repos hidden from anonymous dashboard; owner can still open them
 
 ## Repository management

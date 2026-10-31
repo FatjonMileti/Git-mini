@@ -29,7 +29,8 @@ Environment:
 | Variable           | Default                 | Purpose                                      |
 |--------------------|-------------------------|----------------------------------------------|
 | `PORT`             | `3000`                  | HTTP listen port                             |
-| `SESSION_SECRET`   | `dev-only-change-me`    | Cookie signing secret                        |
+| `JWT_SECRET`       | `dev-only-change-me`    | JWT signing secret (falls back to `SESSION_SECRET`) |
+| `JWT_EXPIRES_IN`   | `7d`                    | Auth token lifetime                          |
 | `SSH_ENABLED`      | `true`                  | Set to `false` to disable the SSH listener   |
 | `SSH_PORT`         | `2222`                  | SSH listen port                              |
 | `SSH_HOST`         | `0.0.0.0`               | SSH bind address                             |
@@ -82,7 +83,7 @@ interactive shell).
 | `/<owner>/<repo>/commits` | Commit history |
 | `/<owner>/<repo>/branches` | Branch list |
 | `/settings/ssh` | Manage SSH public keys |
-| `/login`, `/register`, `/logout` | Session auth |
+| `/login`, `/register`, `/logout` | JWT cookie auth |
 
 ## Git Smart HTTP
 
@@ -100,7 +101,7 @@ The `:repo` segment may include or omit `.git`.
 ## Architecture
 
 ```
-server.js      Express app, dashboard, sessions, SSH bootstrap
+server.js      Express app, dashboard, JWT auth, SSH bootstrap
 models.js      SQLite users, repositories, SSH keys
 gitCore.js     Bare repo paths, init, trees, commits
 gitHttp.js     Smart HTTP spawn + stdin/stdout pipe
@@ -116,4 +117,5 @@ Git interaction is always `child_process` + the system `git` binary (`init --bar
 - **Private** repos are hidden on the dashboard and blocked over SSH for non-owners. HTTP Git remains unauthenticated for now - do not expose this on a public network as-is.
 - Owner and repo names are limited to `A-Z a-z 0-9 . _ -` to avoid path traversal.
 - SSH keys are stored in SQLite and the host key is generated on first start under `storage/`.
+- Web auth is a stateless JWT in an HTTP-only cookie; logout clears the cookie, but issued tokens stay valid until `JWT_EXPIRES_IN`.
 - This is a teaching/local host, not a full Gitea replacement (no issues or pull requests).
