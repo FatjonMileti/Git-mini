@@ -1,0 +1,61 @@
+<%- include('partials/header') %>
+<%
+  const base = '/' + encodeURIComponent(repo.owner) + '/' + encodeURIComponent(repo.name);
+%>
+<div class="mb-6">
+  <a class="text-sm text-slate-500 hover:text-moss" href="<%= base %>">
+    ← <%= repo.owner %>/<%= repo.name %>
+  </a>
+  <div class="mt-2 flex flex-wrap items-center justify-between gap-3">
+    <h1 class="text-2xl font-semibold">Commits</h1>
+    <span class="text-sm text-slate-500">
+      <%= total %> commit<%= total === 1 ? '' : 's' %><% if (branch) { %> on <span class="font-mono"><%= branch %></span><% } %>
+    </span>
+  </div>
+</div>
+
+<%- include('partials/repo-tabs', { repo: repo, active: 'commits' }) %>
+
+<div class="mb-4 flex flex-wrap items-center gap-3">
+  <%- include('partials/branch-select', {
+    branches: branches,
+    branch: branch,
+    defaultBranch: defaultBranch,
+    branchAction: branchAction
+  }) %>
+</div>
+
+<section class="rounded-lg border border-slate-200 bg-white">
+  <% if (historyError) { %>
+    <p class="px-4 py-6 text-sm text-red-700"><%= historyError %></p>
+  <% } else { %>
+    <%- include('partials/commit-groups', { groups: groups, repo: repo }) %>
+  <% } %>
+</section>
+
+<% if (totalPages > 1) { %>
+  <nav class="mt-4 flex items-center justify-between text-sm">
+    <% if (page > 1) { %>
+      <a
+        class="text-moss hover:underline"
+        href="?page=<%= page - 1 %><%= branch ? '&branch=' + encodeURIComponent(branch) : '' %>"
+      >
+        Newer
+      </a>
+    <% } else { %>
+      <span class="text-slate-300">Newer</span>
+    <% } %>
+    <span class="text-slate-500">Page <%= page %> of <%= totalPages %></span>
+    <% if (page < totalPages) { %>
+      <a
+        class="text-moss hover:underline"
+        href="?page=<%= page + 1 %><%= branch ? '&branch=' + encodeURIComponent(branch) : '' %>"
+      >
+        Older
+      </a>
+    <% } else { %>
+      <span class="text-slate-300">Older</span>
+    <% } %>
+  </nav>
+<% } %>
+<%- include('partials/footer') %>

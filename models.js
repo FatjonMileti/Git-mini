@@ -171,6 +171,19 @@ function canViewRepository(repo, viewerId) {
   return Boolean(viewerId && Number(viewerId) === Number(repo.owner_id));
 }
 
+function isRepositoryOwner(repo, viewerId) {
+  return Boolean(repo && viewerId && Number(viewerId) === Number(repo.owner_id));
+}
+
+function deleteRepository(owner, name) {
+  const repo = getRepository(owner, name);
+  if (!repo) return false;
+  const info = getDb()
+    .prepare('DELETE FROM repositories WHERE id = ?')
+    .run(repo.id);
+  return info.changes > 0;
+}
+
 module.exports = {
   init,
   hashPassword,
@@ -184,4 +197,6 @@ module.exports = {
   getRepository,
   listRepositoriesForViewer,
   canViewRepository,
+  isRepositoryOwner,
+  deleteRepository,
 };

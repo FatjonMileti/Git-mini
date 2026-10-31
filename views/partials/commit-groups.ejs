@@ -1,0 +1,58 @@
+<% if (!groups || !groups.length) { %>
+  <p class="px-4 py-6 text-sm text-slate-500">No commits on this branch yet.</p>
+<% } else { %>
+  <%
+    const base = repo
+      ? '/' + encodeURIComponent(repo.owner) + '/' + encodeURIComponent(repo.name)
+      : '';
+  %>
+  <div class="space-y-6 p-4">
+    <% groups.forEach(function (group) { %>
+      <section>
+        <h3 class="mb-2 flex items-center gap-2 text-sm font-semibold text-slate-600">
+          <span class="inline-block h-2 w-2 rounded-full bg-slate-300"></span>
+          Commits on <%= group.dateLabel %>
+        </h3>
+        <ol class="overflow-hidden rounded-md border border-slate-200">
+          <% group.commits.forEach(function (commit) { %>
+            <li class="flex items-start gap-3 border-b border-slate-100 bg-white px-3 py-3 last:border-b-0 hover:bg-slate-50">
+              <span
+                class="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-semibold text-white"
+                style="background-color: hsl(<%= commit.hue %>, 55%, 42%)"
+                title="<%= commit.authorName %>"
+              >
+                <%= commit.initials %>
+              </span>
+              <div class="min-w-0 flex-1">
+                <a
+                  class="block truncate font-medium text-slate-900 hover:text-moss hover:underline"
+                  href="<%= base %>/commit/<%= commit.full %>"
+                  title="<%= commit.subject %>"
+                >
+                  <%= commit.subject %>
+                </a>
+                <p class="mt-0.5 text-xs text-slate-500">
+                  <span class="font-medium text-slate-700"><%= commit.authorName %></span>
+                  committed <%= commit.relativeTime %>
+                </p>
+              </div>
+              <% if (base) { %>
+                <a
+                  class="shrink-0 rounded border border-slate-200 bg-slate-50 px-2 py-1 font-mono text-xs text-slate-600 hover:border-moss hover:text-moss"
+                  href="<%= base %>/commit/<%= commit.full %>"
+                  title="View commit <%= commit.short %>"
+                >
+                  <%= commit.short %>
+                </a>
+              <% } else { %>
+                <code class="shrink-0 rounded border border-slate-200 bg-slate-50 px-2 py-1 font-mono text-xs text-slate-600">
+                  <%= commit.short %>
+                </code>
+              <% } %>
+            </li>
+          <% }) %>
+        </ol>
+      </section>
+    <% }) %>
+  </div>
+<% } %>

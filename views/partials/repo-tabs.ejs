@@ -1,0 +1,21 @@
+<%
+  const base = '/' + encodeURIComponent(repo.owner) + '/' + encodeURIComponent(repo.name);
+  const branchQs =
+    typeof branch !== 'undefined' && branch ? '?branch=' + encodeURIComponent(branch) : '';
+  const tabs = [
+    { key: 'code', label: 'Code', href: base + branchQs },
+    { key: 'commits', label: 'Commits', href: base + '/commits' + branchQs },
+    { key: 'branches', label: 'Branches', href: base + '/branches' },
+  ];
+%>
+<nav class="mb-6 flex flex-wrap gap-1 border-b border-slate-200 text-sm">
+  <% tabs.forEach(function (tab) { %>
+    <% const isActive = active === tab.key; %>
+    <a
+      class="<%= isActive ? 'border-b-2 border-moss px-3 py-2 font-medium text-slate-900' : 'px-3 py-2 text-slate-500 hover:text-slate-900' %>"
+      href="<%= tab.href %>"
+    >
+      <%= tab.label %>
+    </a>
+  <% }) %>
+</nav>

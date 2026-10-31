@@ -48,9 +48,36 @@ Track implementation of the Node.js Git host (Express + SQLite + system `git`).
 - [x] Auth pages (register/login/logout) so `password_hash` is used
 - [x] Private repos hidden from anonymous dashboard; owner can still open them
 
+## Repository management
+
+- [x] Owner-only **Delete repository** action that removes the DB row and bare dir
+- [x] Delete confirmation requires typing the exact repository name
+- [x] Refuse to delete paths outside `storage/repos/`; prune empty owner dir
+
+## Commit history (Gitea/GitHub-style)
+
+- [x] `git log` parser in `gitCore.js` (author, email, relative date, short SHA)
+- [x] `GET /:owner/:repo/commits` with date-grouped list and pagination
+- [x] Recent commits summary on the repository landing page
+- [x] Commit detail page `GET /:owner/:repo/commit/:sha` with changed files + patch
+- [x] Branch selector on code and commits pages; commit detail links back to history
+
+## Code browsing
+
+- [x] Browse subdirectories inside a branch (`?path=`) with breadcrumbs and parent link
+- [x] File (blob) view with line numbers, binary/size guards
+- [x] Raw file download endpoint
+- [x] Branches page listing local branches with default badge
+- [x] Repository tab bar (Code / Commits / Branches) shared across repo pages
+- [x] Dashboard search filter and per-repo latest-activity summary
+
 ## Verification
 
 - [x] App starts (`npm start`) with `git` on PATH
 - [x] Create repo in UI, clone URL works with `git clone` / `git push` over HTTP
 - [x] Empty repo landing page does not crash
 - [x] Missing owner/repo returns a clean 404
+- [x] Delete removes the DB row + bare dir; wrong confirmation is rejected
+- [x] Commit history, commit detail, branches, blob, and raw pages render
+- [x] Path traversal attempts in `?path=` are rejected
+- [x] Invalid branch and commit ids return a clean error

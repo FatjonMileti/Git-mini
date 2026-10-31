@@ -1,0 +1,90 @@
+<%- include('partials/header') %>
+<%
+  const base = '/' + encodeURIComponent(repo.owner) + '/' + encodeURIComponent(repo.name);
+  const treeHref = (pathValue) => {
+    const params = new URLSearchParams();
+    if (branch) params.set('branch', branch);
+    if (pathValue) params.set('path', pathValue);
+    const qs = params.toString();
+    return base + (qs ? '?' + qs : '');
+  };
+  const rawHref = () => {
+    const params = new URLSearchParams();
+    if (branch) params.set('branch', branch);
+    params.set('path', path);
+    return base + '/raw?' + params.toString();
+  };
+%>
+<div class="mb-6">
+  <a class="text-sm text-slate-500 hover:text-moss" href="<%= base %>">
+    ← <%= repo.owner %>/<%= repo.name %>
+  </a>
+  <h1 class="mt-2 text-2xl font-semibold"><%= repo.name %></h1>
+</div>
+
+<%- include('partials/repo-tabs', { repo: repo, active: 'code' }) %>
+
+<section class="overflow-hidden rounded-lg border border-slate-200 bg-white">
+  <div class="flex flex-wrap items-center gap-3 border-b border-slate-200 px-4 py-3">
+    <%- include('partials/branch-select', {
+      branches: branches,
+      branch: branch,
+      defaultBranch: defaultBranch,
+      branchAction: branchAction,
+      path: path
+    }) %>
+    <nav class="flex min-w-0 flex-wrap items-center gap-1 text-sm text-slate-500">
+      <a class="font-medium text-moss hover:underline" href="<%= treeHref('') %>"><%= repo.name %></a>
+      <% crumbs.forEach(function (crumb, index) { %>
+        <span class="text-slate-300">/</span>
+        <% if (index === crumbs.length - 1 && blob) { %>
+          <span class="text-slate-700"><%= crumb.name %></span>
+        <% } else { %>
+          <a class="hover:text-moss hover:underline" href="<%= treeHref(crumb.path) %>"><%= crumb.name %></a>
+        <% } %>
+      <% }) %>
+    </nav>
+    <% if (blob) { %>
+      <a
+        class="ml-auto rounded border border-slate-300 px-2.5 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50"
+        href="<%= rawHref() %>"
+      >
+        Raw
+      </a>
+    <% } %>
+  </div>
+
+  <% if (blobError) { %>
+    <p class="px-4 py-6 text-sm text-red-700"><%= blobError %></p>
+  <% } else if (blob) { %>
+    <div class="flex flex-wrap items-center gap-3 border-b border-slate-100 bg-slate-50 px-4 py-2 text-xs text-slate-500">
+      <span class="font-mono"><%= blob.path %></span>
+      <span><%= blob.lines.length %> line<%= blob.lines.length === 1 ? '' : 's' %></span>
+      <span><%= blob.size %> bytes</span>
+      <% if (blob.binary) { %><span class="text-amber-700">binary</span><% } %>
+    </div>
+    <% if (blob.binary) { %>
+      <p class="px-4 py-8 text-center text-sm text-slate-500">
+        This file looks binary. Use <a class="text-moss hover:underline" href="<%= rawHref() %>">Raw</a> to download it.
+      </p>
+    <% } else if (blob.tooLarge) { %>
+      <p class="px-4 py-8 text-center text-sm text-slate-500">
+        This file is too large to display. Use <a class="text-moss hover:underline" href="<%= rawHref() %>">Raw</a> to download it.
+      </p>
+    <% } else { %>
+      <div class="overflow-x-auto">
+        <table class="w-full border-collapse font-mono text-xs">
+          <tbody>
+            <% blob.lines.forEach(function (line, index) { %>
+              <tr class="hover:bg-slate-50">
+                <td class="w-12 select-none border-r border-slate-100 px-2 py-0 text-right align-top text-slate-400"><%= index + 1 %></td>
+                <td class="whitespace-pre px-3 py-0 align-top text-slate-800"><%= line %></td>
+              </tr>
+            <% }) %>
+          </tbody>
+        </table>
+      </div>
+    <% } %>
+  <% } %>
+</section>
+<%- include('partials/footer') %>

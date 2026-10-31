@@ -1,38 +1,77 @@
 <%- include('partials/header') %>
 <div class="grid gap-8 lg:grid-cols-3">
   <section class="lg:col-span-2">
-    <h1 class="text-2xl font-semibold">Repositories</h1>
-    <p class="mt-1 text-sm text-slate-500">Public repositories, plus your private ones when signed in.</p>
+    <div class="flex flex-wrap items-center justify-between gap-3">
+      <div>
+        <h1 class="text-2xl font-semibold">Repositories</h1>
+        <p class="mt-1 text-sm text-slate-500">Public repositories, plus your private ones when signed in.</p>
+      </div>
+      <% if (repositories.length) { %>
+        <input
+          id="repo-search"
+          class="w-full rounded border border-slate-300 px-3 py-2 text-sm sm:w-56"
+          type="search"
+          placeholder="Find a repository…"
+          autocomplete="off"
+        />
+      <% } %>
+    </div>
 
     <% if (!repositories.length) { %>
       <div class="mt-6 rounded-lg border border-dashed border-slate-300 bg-white p-8 text-center text-slate-500">
         No repositories yet. Create one to get a clone URL.
       </div>
     <% } else { %>
-      <ul class="mt-6 divide-y divide-slate-200 overflow-hidden rounded-lg border border-slate-200 bg-white">
+      <ul id="repo-list" class="mt-6 divide-y divide-slate-200 overflow-hidden rounded-lg border border-slate-200 bg-white">
         <% repositories.forEach(function (repo) { %>
-          <li>
+          <%
+            const searchText = (repo.owner + ' ' + repo.name + ' ' + (repo.description || '')).toLowerCase();
+          %>
+          <li data-search="<%= searchText %>">
             <a
-              class="flex items-start justify-between gap-4 px-4 py-3 hover:bg-slate-50"
+              class="flex items-start justify-between gap-4 px-4 py-4 hover:bg-slate-50"
               href="/<%= encodeURIComponent(repo.owner) %>/<%= encodeURIComponent(repo.name) %>"
             >
-              <div>
-                <div class="font-medium text-moss">
-                  <%= repo.owner %>/<%= repo.name %>
+              <div class="min-w-0">
+                <div class="flex flex-wrap items-center gap-2">
+                  <span class="font-semibold text-moss">
+                    <%= repo.owner %>/<%= repo.name %>
+                  </span>
+                  <% if (repo.is_private) { %>
+                    <span class="rounded bg-slate-100 px-2 py-0.5 text-xs text-slate-600">Private</span>
+                  <% } else { %>
+                    <span class="rounded bg-green-50 px-2 py-0.5 text-xs text-green-800">Public</span>
+                  <% } %>
                 </div>
                 <p class="mt-1 text-sm text-slate-500">
                   <%= repo.description || 'No description' %>
                 </p>
+                <% if (repo.lastCommit) { %>
+                  <p class="mt-2 flex flex-wrap items-center gap-2 text-xs text-slate-400">
+                    <span
+                      class="flex h-5 w-5 items-center justify-center rounded-full text-[9px] font-semibold text-white"
+                      style="background-color: hsl(<%= repo.lastCommit.hue %>, 55%, 42%)"
+                    >
+                      <%= repo.lastCommit.initials %>
+                    </span>
+                    <span class="truncate text-slate-500"><%= repo.lastCommit.subject %></span>
+                    <span>·</span>
+                    <span><%= repo.lastCommit.relativeTime %></span>
+                  </p>
+                <% } else { %>
+                  <p class="mt-2 text-xs text-slate-400">No commits yet</p>
+                <% } %>
               </div>
-              <% if (repo.is_private) { %>
-                <span class="rounded bg-slate-100 px-2 py-0.5 text-xs text-slate-600">Private</span>
-              <% } else { %>
-                <span class="rounded bg-green-50 px-2 py-0.5 text-xs text-green-800">Public</span>
-              <% } %>
+              <svg class="mt-1 h-4 w-4 shrink-0 text-slate-300" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+                <path d="M6.22 3.22a.75.75 0 0 1 1.06 0l4.25 4.25a.75.75 0 0 1 0 1.06l-4.25 4.25a.75.75 0 0 1-1.06-1.06L9.94 8 6.22 4.28a.75.75 0 0 1 0-1.06Z"></path>
+              </svg>
             </a>
           </li>
         <% }) %>
       </ul>
+      <p id="repo-empty" class="mt-6 hidden rounded-lg border border-dashed border-slate-300 bg-white p-6 text-center text-sm text-slate-500">
+        No repositories match your search.
+      </p>
     <% } %>
   </section>
 
@@ -80,4 +119,24 @@
     </div>
   </aside>
 </div>
+<% if (repositories.length) { %>
+  <script>
+    (function () {
+      var input = document.getElementById('repo-search');
+      var items = Array.prototype.slice.call(document.querySelectorAll('#repo-list li'));
+      var empty = document.getElementById('repo-empty');
+      if (!input) return;
+      input.addEventListener('input', function () {
+        var term = input.value.trim().toLowerCase();
+        var visible = 0;
+        items.forEach(function (item) {
+          var match = !term || (item.getAttribute('data-search') || '').indexOf(term) !== -1;
+          item.classList.toggle('hidden', !match);
+          if (match) visible += 1;
+        });
+        if (empty) empty.classList.toggle('hidden', visible !== 0);
+      });
+    })();
+  </script>
+<% } %>
 <%- include('partials/footer') %>

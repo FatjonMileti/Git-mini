@@ -1,0 +1,28 @@
+<% if (!branches || !branches.length) { %>
+  <span class="rounded border border-slate-200 bg-slate-50 px-2 py-1 text-xs text-slate-500">
+    No branches yet
+  </span>
+<% } else { %>
+  <form class="inline-flex items-center gap-1.5" method="get" action="<%= branchAction %>">
+    <% if (typeof path !== 'undefined' && path) { %>
+      <input type="hidden" name="path" value="<%= path %>" />
+    <% } %>
+    <svg class="h-4 w-4 text-slate-500" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+      <path d="M9.5 3.25a2.25 2.25 0 1 1 3 2.122V6A2.5 2.5 0 0 1 10 8.5H6a1 1 0 0 0-1 1v1.128a2.25 2.25 0 1 1-1.5 0V5.372a2.25 2.25 0 1 1 1.5 0v1.836A2.492 2.492 0 0 1 6 7h4a1 1 0 0 0 1-1v-.628A2.25 2.25 0 0 1 9.5 3.25Zm-6 0a.75.75 0 1 0 1.5 0 .75.75 0 0 0-1.5 0Zm8.25-.75a.75.75 0 1 0 0 1.5.75.75 0 0 0 0-1.5ZM4.25 12a.75.75 0 1 0 0 1.5.75.75 0 0 0 0-1.5Z"></path>
+    </svg>
+    <select
+      name="branch"
+      onchange="this.form.submit()"
+      class="max-w-[14rem] rounded border border-slate-300 bg-white px-2 py-1 text-xs font-medium text-slate-700"
+    >
+      <% branches.forEach(function (item) { %>
+        <option value="<%= item.name %>" <%= item.name === branch ? 'selected' : '' %>>
+          <%= item.name %><%= item.name === defaultBranch ? ' (default)' : '' %>
+        </option>
+      <% }) %>
+    </select>
+    <noscript>
+      <button class="rounded border border-slate-300 px-2 py-1 text-xs" type="submit">Go</button>
+    </noscript>
+  </form>
+<% } %>
