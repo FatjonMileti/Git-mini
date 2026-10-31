@@ -71,6 +71,19 @@ Track implementation of the Node.js Git host (Express + SQLite + system `git`).
 - [x] Repository tab bar (Code / Commits / Branches) shared across repo pages
 - [x] Dashboard search filter and per-repo latest-activity summary
 
+## SSH transport
+
+- [x] Embedded SSH server (`ssh2`) started alongside Express on `SSH_PORT` (default `2222`)
+- [x] Persist a generated host key under `storage/` and keep it out of git
+- [x] `git-upload-pack` / `git-receive-pack` over SSH via system `git` (no shell)
+- [x] Public-key authentication stored in SQLite (`ssh_keys` table)
+- [x] Password authentication fallback using the existing scrypt hash
+- [x] Owner-only push; private repos readable only by their owner
+- [x] `/settings/ssh` page to add, list, and delete keys (fingerprints shown)
+- [x] SSH clone URL shown next to the HTTP URL on the repo page
+- [x] Reject arbitrary exec/shell/subsystem requests and malformed repo paths
+- [x] Clean errors and exit codes when the repo is missing or access is denied
+
 ## Verification
 
 - [x] App starts (`npm start`) with `git` on PATH
@@ -81,3 +94,7 @@ Track implementation of the Node.js Git host (Express + SQLite + system `git`).
 - [x] Commit history, commit detail, branches, blob, and raw pages render
 - [x] Path traversal attempts in `?path=` are rejected
 - [x] Invalid branch and commit ids return a clean error
+- [x] SSH clone, push, and re-clone work with an OpenSSH client and a registered key
+- [x] SSH password auth works; non-Git commands and traversal paths are rejected
+- [x] Non-owner push and private-repo fetch over SSH are denied
+- [x] SSH key add/list/delete UI and fingerprint display work

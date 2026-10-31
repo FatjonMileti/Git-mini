@@ -1,11 +1,12 @@
 # Git Mini
 
-A minimal self-hosted Git platform (Gitea-like) for local use. It serves a small web UI and speaks Git Smart HTTP so `git clone`, `git fetch`, and `git push` work against the system `git` binary — no native Git bindings.
+A minimal self-hosted Git platform (Gitea-like) for local use. It serves a small web UI and speaks Git Smart HTTP and SSH so `git clone`, `git fetch`, and `git push` work against the system `git` binary — no native Git bindings.
 
 ## Requirements
 
 - Node.js 18+
 - `git` on `PATH`
+- An SSH client (`ssh`, included with Windows 10+/macOS/Linux) only if you use SSH remotes
 - Build tools only if `better-sqlite3` has no prebuild for your platform
 
 ## Quick start
@@ -25,12 +26,16 @@ Change that password in production, or register a new user at `/register`.
 
 Environment:
 
-| Variable          | Default                 | Purpose                          |
-|-------------------|-------------------------|----------------------------------|
-| `PORT`            | `3000`                  | HTTP listen port                 |
-| `SESSION_SECRET`  | `dev-only-change-me`    | Cookie signing secret            |
+| Variable           | Default                 | Purpose                                      |
+|--------------------|-------------------------|----------------------------------------------|
+| `PORT`             | `3000`                  | HTTP listen port                             |
+| `SESSION_SECRET`   | `dev-only-change-me`    | Cookie signing secret                        |
+| `SSH_ENABLED`      | `true`                  | Set to `false` to disable the SSH listener   |
+| `SSH_PORT`         | `2222`                  | SSH listen port                              |
+| `SSH_HOST`         | `0.0.0.0`               | SSH bind address                             |
+| `SSH_PUBLIC_HOST`  | request hostname        | Hostname shown in SSH clone URLs             |
 
-Data lives under `storage/` (gitignored): SQLite at `storage/gitea-clone.db` and bare repos at `storage/repos/<owner>/<name>.git`.
+Data lives under `storage/` (gitignored): SQLite at `storage/gitea-clone.db`, bare repos at `storage/repos/<owner>/<name>.git`, and the generated SSH host key at `storage/ssh_host_ed25519_key`.
 
 ## Using Git over HTTP
 
@@ -48,6 +53,25 @@ git push -u origin main
 
 After the first push, `GET /<owner>/<repo>` lists the root tree.
 
+## Using Git over SSH
+
+The app runs its own SSH server (embedded `ssh2`, port `2222` by default).
+
+1. Generate a key if needed: `ssh-keygen -t ed25519 -C "you@example.com"`.
+2. Sign in and open `/settings/ssh`.
+3. Paste the contents of `~/.ssh/id_ed25519.pub`.
+4. Clone the SSH URL shown on the repo page:
+
+```bash
+git clone ssh://git@localhost:2222/<owner>/<repo>.git
+```
+
+Password authentication also works, but the SSH username must be your web
+username (`ssh://alice@localhost:2222/...`). Pushing is restricted to the
+repository owner; private repositories can only be fetched by their owner. The
+server only accepts `git-upload-pack` and `git-receive-pack` commands (no
+interactive shell).
+
 ## Web routes
 
 | Path | Description |
@@ -55,6 +79,9 @@ After the first push, `GET /<owner>/<repo>` lists the root tree.
 | `/dashboard` | Public repos (plus your private ones) and the create form |
 | `/create` | `POST` — create metadata + `git init --bare` |
 | `/<owner>/<repo>` | Repo landing page (name, clone URL, files) |
+| `/<owner>/<repo>/commits` | Commit history |
+| `/<owner>/<repo>/branches` | Branch list |
+| `/settings/ssh` | Manage SSH public keys |
 | `/login`, `/register`, `/logout` | Session auth |
 
 ## Git Smart HTTP
@@ -73,18 +100,20 @@ The `:repo` segment may include or omit `.git`.
 ## Architecture
 
 ```
-server.js      Express app, dashboard, sessions
-models.js      SQLite users + repositories
-gitCore.js     Bare repo paths, init, ls-tree
+server.js      Express app, dashboard, sessions, SSH bootstrap
+models.js      SQLite users, repositories, SSH keys
+gitCore.js     Bare repo paths, init, trees, commits
 gitHttp.js     Smart HTTP spawn + stdin/stdout pipe
+sshCore.js     SSH auth, command parsing, pack spawn
 views/         EJS + Tailwind CDN
-config.js      PORT, storage paths
+config.js      HTTP/SSH ports, storage paths
 ```
 
 Git interaction is always `child_process` + the system `git` binary (`init --bare`, `ls-tree`, `upload-pack`, `receive-pack`).
 
 ## Notes
 
-- **Private** only hides a repo from other users on the dashboard. Clone/push over HTTP is currently unauthenticated — do not expose this on a public network as-is.
-- Owner and repo names are limited to `A–Z a–z 0–9 . _ -` to avoid path traversal.
-- This is a teaching/local host, not a Gitea replacement (no issues, PRs, or SSH).
+- **Private** repos are hidden on the dashboard and blocked over SSH for non-owners. HTTP Git remains unauthenticated for now - do not expose this on a public network as-is.
+- Owner and repo names are limited to `A-Z a-z 0-9 . _ -` to avoid path traversal.
+- SSH keys are stored in SQLite and the host key is generated on first start under `storage/`.
+- This is a teaching/local host, not a full Gitea replacement (no issues or pull requests).

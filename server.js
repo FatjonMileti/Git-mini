@@ -11,9 +11,17 @@ const path = require('path');
 const express = require('express');
 const session = require('express-session');
 
-const { PORT, SESSION_SECRET, ensureStorageDirs } = require('./config');
+const {
+  PORT,
+  SESSION_SECRET,
+  SSH_ENABLED,
+  SSH_PORT,
+  SSH_PUBLIC_HOST,
+  ensureStorageDirs,
+} = require('./config');
 const models = require('./models');
 const gitCore = require('./gitCore');
+const sshCore = require('./sshCore');
 const { createGitHttpRouter } = require('./gitHttp');
 
 ensureStorageDirs();
@@ -33,6 +41,13 @@ function publicOrigin(req) {
 
 function cloneUrl(req, owner, repoName) {
   return `${publicOrigin(req)}/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repoName)}.git`;
+}
+
+function sshCloneUrl(req, owner, repoName) {
+  if (!SSH_ENABLED) return null;
+  const host = SSH_PUBLIC_HOST || req.hostname || 'localhost';
+  const portPart = Number(SSH_PORT) === 22 ? '' : `:${SSH_PORT}`;
+  return `ssh://git@${host}${portPart}/${encodeURIComponent(owner)}/${encodeURIComponent(repoName)}.git`;
 }
 
 app.use(
@@ -219,6 +234,67 @@ app.post('/create', requireLogin, async (req, res) => {
     setFlash(req, 'error', err.message || 'Failed to create repository.');
     res.redirect('/dashboard');
   }
+});
+
+/**
+ * GET /settings/ssh — manage the current user's SSH public keys
+ */
+app.get('/settings/ssh', requireLogin, (req, res) => {
+  res.render('settings-ssh', {
+    title: 'SSH keys',
+    keys: models.listSshKeys(req.session.user.id),
+    sshPort: SSH_PORT,
+    sshEnabled: SSH_ENABLED,
+  });
+});
+
+app.post('/settings/ssh', requireLogin, (req, res) => {
+  const title = String(req.body.title || '').trim().slice(0, 80) || 'SSH key';
+  const publicKey = String(req.body.public_key || '').trim();
+
+  let parsed;
+  try {
+    parsed = sshCore.parseAuthorizedKey(publicKey);
+  } catch (err) {
+    setFlash(req, 'error', err.message || 'Invalid SSH public key.');
+    return res.redirect('/settings/ssh');
+  }
+
+  if (models.findSshKeyByFingerprint(parsed.fingerprint)) {
+    setFlash(req, 'error', 'That public key is already registered.');
+    return res.redirect('/settings/ssh');
+  }
+
+  try {
+    models.createSshKey({
+      userId: req.session.user.id,
+      title,
+      publicKey: parsed.publicKey,
+      keyType: parsed.type,
+      fingerprint: parsed.fingerprint,
+    });
+  } catch {
+    setFlash(req, 'error', 'That public key is already registered.');
+    return res.redirect('/settings/ssh');
+  }
+
+  setFlash(req, 'success', `Added SSH key ${parsed.fingerprint}.`);
+  res.redirect('/settings/ssh');
+});
+
+app.post('/settings/ssh/:id/delete', requireLogin, (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id) || id <= 0) {
+    setFlash(req, 'error', 'Invalid SSH key.');
+    return res.redirect('/settings/ssh');
+  }
+  const removed = models.deleteSshKey(id, req.session.user.id);
+  setFlash(
+    req,
+    removed ? 'success' : 'error',
+    removed ? 'SSH key removed.' : 'SSH key not found.'
+  );
+  res.redirect('/settings/ssh');
 });
 
 /**
@@ -495,6 +571,8 @@ app.get('/:owner/:repo', async (req, res, next) => {
     repo,
     isOwner,
     cloneUrl: cloneUrl(req, owner, repoName),
+    sshCloneUrl: sshCloneUrl(req, owner, repoName),
+    sshEnabled: SSH_ENABLED,
     branch: tree.branch || history.branch,
     defaultBranch,
     branches,
@@ -525,4 +603,5 @@ app.use((err, _req, res, _next) => {
 app.listen(PORT, () => {
   console.log(`Git host listening on http://localhost:${PORT}`);
   console.log('Default user: admin / admin (change after first login)');
+  sshCore.startSshServer();
 });

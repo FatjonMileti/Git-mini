@@ -54,6 +54,17 @@ function initSchema(database) {
     );
 
     CREATE INDEX IF NOT EXISTS idx_repos_public ON repositories (is_private, name);
+
+    CREATE TABLE IF NOT EXISTS ssh_keys (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      title TEXT NOT NULL DEFAULT '',
+      public_key TEXT NOT NULL,
+      key_type TEXT NOT NULL DEFAULT '',
+      fingerprint TEXT NOT NULL UNIQUE,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    );
   `);
 }
 
@@ -175,6 +186,53 @@ function isRepositoryOwner(repo, viewerId) {
   return Boolean(repo && viewerId && Number(viewerId) === Number(repo.owner_id));
 }
 
+function listSshKeys(userId) {
+  return getDb()
+    .prepare(
+      `
+      SELECT id, title, public_key, key_type, fingerprint, created_at
+      FROM ssh_keys
+      WHERE user_id = ?
+      ORDER BY created_at DESC, id DESC
+    `
+    )
+    .all(userId);
+}
+
+function findSshKeyByFingerprint(fingerprint) {
+  return (
+    getDb()
+      .prepare(
+        `
+        SELECT k.id, k.user_id, k.title, k.public_key, k.key_type, k.fingerprint,
+               u.username
+        FROM ssh_keys k
+        JOIN users u ON u.id = k.user_id
+        WHERE k.fingerprint = ?
+      `
+      )
+      .get(fingerprint) || null
+  );
+}
+
+function createSshKey({ userId, title, publicKey, keyType, fingerprint }) {
+  const info = getDb()
+    .prepare(
+      `
+      INSERT INTO ssh_keys (user_id, title, public_key, key_type, fingerprint)
+      VALUES (?, ?, ?, ?, ?)
+    `
+    )
+    .run(userId, title || '', publicKey, keyType || '', fingerprint);
+  return info.lastInsertRowid;
+}
+
+function deleteSshKey(id, userId) {
+  return getDb()
+    .prepare('DELETE FROM ssh_keys WHERE id = ? AND user_id = ?')
+    .run(id, userId).changes > 0;
+}
+
 function deleteRepository(owner, name) {
   const repo = getRepository(owner, name);
   if (!repo) return false;
@@ -199,4 +257,8 @@ module.exports = {
   canViewRepository,
   isRepositoryOwner,
   deleteRepository,
+  listSshKeys,
+  findSshKeyByFingerprint,
+  createSshKey,
+  deleteSshKey,
 };
