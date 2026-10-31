@@ -1,0 +1,23 @@
+<%- include('partials/header') %>
+<div class="mx-auto max-w-md rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
+  <h1 class="text-xl font-semibold">Create account</h1>
+  <form class="mt-6 space-y-4" method="post" action="/register">
+    <label class="block text-sm font-medium">
+      Username
+      <input
+        class="mt-1 w-full rounded border border-slate-300 px-3 py-2"
+        name="username"
+        required
+        pattern="[A-Za-z0-9._-]{2,40}"
+      />
+    </label>
+    <label class="block text-sm font-medium">
+      Password
+      <input class="mt-1 w-full rounded border border-slate-300 px-3 py-2" type="password" name="password" required minlength="4" />
+    </label>
+    <button class="w-full rounded bg-moss px-3 py-2 font-semibold text-white hover:bg-green-600" type="submit">
+      Register
+    </button>
+  </form>
+</div>
+<%- include('partials/footer') %>
