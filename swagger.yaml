@@ -1,0 +1,509 @@
+openapi: 3.0.3
+info:
+  title: Git Mini API
+  version: 1.0.0
+  description: |
+    Minimal self-hosted Git platform (Gitea-like) with web UI, Git Smart HTTP, and SSH.
+    Authentication is via JWT in an HTTP-only cookie (`gitmini.token`).
+servers:
+  - url: http://localhost:3000
+    description: Local development server
+security:
+  - cookieAuth: []
+paths:
+  /:
+    get:
+      summary: Redirect to dashboard
+      responses:
+        '302':
+          description: Redirect to /dashboard
+  /login:
+    get:
+      summary: Show login page
+      responses:
+        '200':
+          description: Login form (HTML)
+    post:
+      summary: Authenticate user
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              required:
+                - username
+                - password
+              properties:
+                username:
+                  type: string
+                password:
+                  type: string
+                  format: password
+      responses:
+        '302':
+          description: Redirect to dashboard on success; sets `gitmini.token` cookie
+        '200':
+          description: Returns login page with error flash
+  /register:
+    get:
+      summary: Show registration page
+      responses:
+        '200':
+          description: Registration form (HTML)
+    post:
+      summary: Create new account
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              required:
+                - username
+                - password
+              properties:
+                username:
+                  type: string
+                  pattern: '^[A-Za-z0-9._-]{2,40}$'
+                password:
+                  type: string
+                  format: password
+                  minLength: 4
+      responses:
+        '302':
+          description: Redirect to dashboard on success; sets `gitmini.token` cookie
+        '200':
+          description: Returns registration page with error flash
+  /logout:
+    post:
+      summary: Log out current user
+      responses:
+        '302':
+          description: Redirect to dashboard; clears `gitmini.token` cookie
+  /dashboard:
+    get:
+      summary: List repositories (public + own private)
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          description: Dashboard page (HTML) with repo list and create form
+  /create:
+    post:
+      summary: Create a new repository
+      security:
+        - cookieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              required:
+                - name
+              properties:
+                name:
+                  type: string
+                  pattern: '^[A-Za-z0-9._-]{1,80}$'
+                description:
+                  type: string
+                is_private:
+                  type: boolean
+      responses:
+        '302':
+          description: Redirect to new repo page on success
+        '200':
+          description: Returns dashboard with error flash
+  /settings:
+    get:
+      summary: Account settings page
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          description: Settings page (HTML) with profile, default visibility, and password forms
+  /settings/profile:
+    post:
+      summary: Update profile and preferences
+      security:
+        - cookieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              properties:
+                display_name:
+                  type: string
+                  maxLength: 80
+                email:
+                  type: string
+                  format: email
+                  maxLength: 254
+                bio:
+                  type: string
+                  maxLength: 500
+                default_private:
+                  type: boolean
+      responses:
+        '302':
+          description: Redirect to /settings with success flash
+        '200':
+          description: Returns settings page with error flash
+  /settings/password:
+    post:
+      summary: Change password
+      security:
+        - cookieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              required:
+                - current_password
+                - new_password
+                - confirm_password
+              properties:
+                current_password:
+                  type: string
+                  format: password
+                new_password:
+                  type: string
+                  format: password
+                  minLength: 4
+                confirm_password:
+                  type: string
+                  format: password
+      responses:
+        '302':
+          description: Redirect to /settings; rotates JWT token version
+        '200':
+          description: Returns settings page with error flash
+  /settings/ssh:
+    get:
+      summary: List and manage SSH keys
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          description: SSH keys page (HTML)
+    post:
+      summary: Add an SSH public key
+      security:
+        - cookieAuth: []
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              required:
+                - public_key
+              properties:
+                title:
+                  type: string
+                  maxLength: 80
+                public_key:
+                  type: string
+                  description: OpenSSH public key line (e.g., "ssh-ed25519 AAAA... user@host")
+      responses:
+        '302':
+          description: Redirect to /settings/ssh with success flash
+        '200':
+          description: Returns SSH keys page with error flash
+  /settings/ssh/{id}/delete:
+    post:
+      summary: Delete an SSH key
+      security:
+        - cookieAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '302':
+          description: Redirect to /settings/ssh with success/error flash
+  '/{owner}/{repo}':
+    get:
+      summary: Repository landing page
+      parameters:
+        - name: owner
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: repo
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Repo page (HTML) with clone URLs, file tree, recent commits
+        '404':
+          description: Not found
+  '/{owner}/{repo}/commits':
+    get:
+      summary: Commit history (paginated, date-grouped)
+      parameters:
+        - name: owner
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: repo
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+      responses:
+        '200':
+          description: Commits page (HTML)
+        '404':
+          description: Not found
+  '/{owner}/{repo}/commit/{sha}':
+    get:
+      summary: Commit detail with diff
+      parameters:
+        - name: owner
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: repo
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: sha
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Commit detail page (HTML)
+        '404':
+          description: Not found
+  '/{owner}/{repo}/branches':
+    get:
+      summary: List branches
+      parameters:
+        - name: owner
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: repo
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Branches page (HTML)
+        '404':
+          description: Not found
+  '/{owner}/{repo}/blob':
+    get:
+      summary: View file content
+      parameters:
+        - name: owner
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: repo
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: path
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: branch
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: File view page (HTML) with line numbers
+        '404':
+          description: Not found
+  '/{owner}/{repo}/raw':
+    get:
+      summary: Raw file content
+      parameters:
+        - name: owner
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: repo
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: path
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: branch
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Raw file content (binary-safe)
+        '404':
+          description: Not found
+  '/{owner}/{repo}/delete':
+    post:
+      summary: Delete repository (owner only)
+      security:
+        - cookieAuth: []
+      parameters:
+        - name: owner
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: repo
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              required:
+                - confirm_name
+              properties:
+                confirm_name:
+                  type: string
+      responses:
+        '302':
+          description: Redirect to dashboard on success
+        '200':
+          description: Returns repo page with error flash
+# Git Smart HTTP (mounted at /repos, raw body streams)
+  /repos/{owner}/{repo}/info/refs:
+    get:
+      summary: Git advertise-refs (Smart HTTP)
+      parameters:
+        - name: owner
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: repo
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: service
+          in: query
+          required: true
+          schema:
+            type: string
+            enum:
+              - git-upload-pack
+              - git-receive-pack
+      responses:
+        '200':
+          description: Pkt-line advertisement
+          content:
+            application/x-git-upload-pack-advertisement:
+              schema:
+                type: string
+            application/x-git-receive-pack-advertisement:
+              schema:
+                type: string
+        '404':
+          description: Repository not found
+  /repos/{owner}/{repo}/git-upload-pack:
+    post:
+      summary: Git fetch/clone (Smart HTTP)
+      parameters:
+        - name: owner
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: repo
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/x-git-upload-pack-request:
+            schema:
+              type: string
+              format: binary
+      responses:
+        '200':
+          description: Packfile stream
+          content:
+            application/x-git-upload-pack-result:
+              schema:
+                type: string
+                format: binary
+        '404':
+          description: Repository not found
+  /repos/{owner}/{repo}/git-receive-pack:
+    post:
+      summary: Git push (Smart HTTP)
+      parameters:
+        - name: owner
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: repo
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/x-git-receive-pack-request:
+            schema:
+              type: string
+              format: binary
+      responses:
+        '200':
+          description: Pack result
+          content:
+            application/x-git-receive-pack-result:
+              schema:
+                type: string
+                format: binary
+        '404':
+          description: Repository not found
+components:
+  securitySchemes:
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: gitmini.token
+      description: JWT authentication cookie (HTTP-only)

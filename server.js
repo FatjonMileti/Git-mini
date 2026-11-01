@@ -10,6 +10,8 @@
 const path = require('path');
 const express = require('express');
 const jwt = require('jsonwebtoken');
+const swaggerUi = require('swagger-ui-express');
+const YAML = require('yamljs');
 
 const {
   PORT,
@@ -198,6 +200,11 @@ app.use(authenticateJwt);
 
 app.use(express.urlencoded({ extended: false }));
 app.use(express.json());
+
+// Swagger UI must be mounted before the /:owner/:repo wildcard routes.
+const swaggerDocument = YAML.load(path.join(__dirname, "swagger.yaml"));
+app.use("/docs", swaggerUi.serve, swaggerUi.setup(swaggerDocument));
+app.get("/swagger.yaml", (req, res) => res.type("application/yaml").sendFile(path.join(__dirname, "swagger.yaml")));
 
 app.get('/', (_req, res) => res.redirect('/dashboard'));
 
@@ -734,6 +741,7 @@ app.get('/:owner/:repo', async (req, res, next) => {
     readme,
   });
 });
+
 
 app.use((req, res) => {
   res.status(404).render('not-found', {

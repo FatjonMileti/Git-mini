@@ -15,6 +15,8 @@
     "ejs": "^3.1.10",
     "express": "^4.21.2",
     "jsonwebtoken": "^9.0.3",
-    "ssh2": "^1.17.0"
+    "ssh2": "^1.17.0",
+    "swagger-ui-express": "^5.0.1",
+    "yamljs": "^0.3.0"
   }
 }
